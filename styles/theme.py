@@ -248,6 +248,58 @@ div[data-testid="stButton"] > button.describe-btn:hover,
     margin-right: 0.5rem;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Tabs ─────────────────────────────────────────────────────── */
+[data-testid="stTabs"] [data-baseweb="tab-list"] {
+    gap: 0;
+    background: var(--surface);
+    border-radius: 10px;
+    padding: 4px;
+    border: 1px solid var(--border);
+}
+[data-testid="stTabs"] [data-baseweb="tab"] {
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 0.92rem;
+    color: var(--text-dim);
+    padding: 0.5rem 1.2rem;
+    transition: all 0.2s;
+}
+[data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"] {
+    background: var(--accent-bg) !important;
+    color: var(--accent) !important;
+    border-bottom: none !important;
+}
+[data-testid="stTabs"] [data-baseweb="tab-highlight"] {
+    display: none;
+}
+
+/* ── Camera radio toggle ──────────────────────────────────────── */
+div[data-testid="stRadio"] > div {
+    gap: 0.5rem;
+}
+div[data-testid="stRadio"] label {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.35rem 0.9rem;
+    font-size: 0.88rem;
+    transition: border-color 0.2s, background 0.2s;
+    cursor: pointer;
+}
+div[data-testid="stRadio"] label:has(input:checked) {
+    border-color: var(--accent);
+    background: var(--accent-bg);
+    color: var(--accent);
+}
+
+/* ── Camera input compact ─────────────────────────────────────── */
+[data-testid="stCameraInput"] video,
+[data-testid="stCameraInput"] img {
+    border-radius: 10px;
+    max-height: 320px;
+    object-fit: contain;
+}
 </style>
 """
 

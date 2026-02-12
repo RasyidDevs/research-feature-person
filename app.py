@@ -35,7 +35,7 @@ def main():
     # ── Header ──────────────────────────────────────────────────────
     st.markdown(
         '<h1 class="main-title">Human Descriptor</h1>'
-        '<p class="subtitle">Upload images to extract face accessories & body type descriptors</p>',
+        '<p class="subtitle">Upload images or use your camera to extract face accessories & body type descriptors</p>',
         unsafe_allow_html=True,
     )
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
@@ -53,7 +53,7 @@ def main():
     # Reset caches when files change
     current_keys = set()
     if uploaded_files:
-        current_keys = {f"{f.name}_{f.size}" for f in uploaded_files}
+        current_keys = {f"{getattr(f, 'name', 'cam')}_{getattr(f, 'size', 0)}" for f in uploaded_files}
 
     prev_keys = st.session_state.get("prev_file_keys", set())
     if current_keys != prev_keys:

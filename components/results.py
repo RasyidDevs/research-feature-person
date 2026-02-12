@@ -10,6 +10,20 @@ from PIL import Image
 from inference.descriptor import run_yolo_only, draw_bounding_boxes, run_descriptor
 
 
+def _open_image(f) -> Image.Image:
+    """Open an image from an UploadedFile or CameraImage."""
+    if hasattr(f, "seek"):
+        f.seek(0)
+    return Image.open(io.BytesIO(f.read() if callable(getattr(f, 'read', None)) else f.getvalue()))
+
+
+def _file_key(f) -> str:
+    """Build a stable cache key for any file-like image object."""
+    name = getattr(f, "name", "camera")
+    size = getattr(f, "size", 0)
+    return f"{name}_{size}"
+
+
 # ── Helpers ─────────────────────────────────────────────────────────────
 
 def _pil_to_b64_img_tag(img: Image.Image, alt: str = "") -> str:
@@ -58,21 +72,22 @@ def render_preview(uploaded_files: list, model):
     cards_html = '<div class="card-grid">'
 
     for f in uploaded_files:
-        image = Image.open(f)
+        image = _open_image(f)
+        fname = getattr(f, "name", "camera_capture.jpg")
 
         # Cache key = filename + size (simple dedup)
-        cache_key = f"{f.name}_{f.size}"
+        cache_key = _file_key(f)
         if cache_key not in yolo_cache:
             yolo_cache[cache_key] = run_yolo_only(image, model)
 
         yolo_res = yolo_cache[cache_key]
         annotated = draw_bounding_boxes(image, yolo_res)
 
-        img_tag = _pil_to_b64_img_tag(annotated, alt=f.name)
+        img_tag = _pil_to_b64_img_tag(annotated, alt=fname)
         cards_html += f"""
         <div class="card">
             {img_tag}
-            <p class="card-filename">{f.name}</p>
+            <p class="card-filename">{fname}</p>
         </div>"""
 
     cards_html += "</div>"
@@ -100,12 +115,13 @@ def render_results(uploaded_files: list, model, client):
     progress = st.progress(0, text="Running inference…")
 
     for idx, f in enumerate(uploaded_files):
-        cache_key = f"{f.name}_{f.size}"
+        cache_key = _file_key(f)
+        fname = getattr(f, "name", "camera_capture.jpg")
 
         if cache_key not in inf_cache:
-            image = Image.open(f)
+            image = _open_image(f)
             yolo_res = yolo_cache.get(cache_key)
-            result = run_descriptor(image, f.name, model, client, yolo_result=yolo_res)
+            result = run_descriptor(image, fname, model, client, yolo_result=yolo_res)
             inf_cache[cache_key] = {
                 "result": result,
                 "cache_key": cache_key,
@@ -119,8 +135,9 @@ def render_results(uploaded_files: list, model, client):
     cards_html = '<div class="card-grid">'
 
     for f in uploaded_files:
-        image = Image.open(f)
-        cache_key = f"{f.name}_{f.size}"
+        image = _open_image(f)
+        fname = getattr(f, "name", "camera_capture.jpg")
+        cache_key = _file_key(f)
 
         yolo_res = yolo_cache.get(cache_key)
         if yolo_res:
@@ -128,7 +145,7 @@ def render_results(uploaded_files: list, model, client):
         else:
             annotated = image
 
-        img_tag = _pil_to_b64_img_tag(annotated, alt=f.name)
+        img_tag = _pil_to_b64_img_tag(annotated, alt=fname)
         inf = inf_cache.get(cache_key, {})
         result = inf.get("result", {"Face": [], "Body": "unknown"})
 
@@ -138,7 +155,7 @@ def render_results(uploaded_files: list, model, client):
         cards_html += f"""
         <div class="card">
             {img_tag}
-            <p class="card-filename">{f.name}</p>
+            <p class="card-filename">{fname}</p>
             <p class="card-label">🧑 Face Accessories</p>
             {face_html}
             <p class="card-label">🧍 Body Type</p>
