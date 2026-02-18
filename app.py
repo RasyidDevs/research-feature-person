@@ -1,76 +1,134 @@
 """
 Human Descriptor System — Streamlit UI
 =======================================
-Upload head / full-body images and receive attribute descriptors.
+Upload images → Select mode → Input question → Analyze → Results + CSV
 """
 
+import io
 import streamlit as st
+import pandas as pd
 from components.page_config import setup_page
 from components.sidebar import render_sidebar
 from components.uploader import render_uploader
-from components.results import render_preview, render_results
+from components.results import render_results
 from styles.theme import inject_css
 from ultralytics import YOLO
-from openai import OpenAI
-import os
+from langchain_openai import ChatOpenAI
 
+
+# ── Model loading (cached) ──────────────────────────────────
+
+@st.cache_resource
+def load_seg_model():
+    """Load YOLOv8m-seg for person segmentation."""
+    return YOLO("models/yolov8m-seg.pt")
 
 
 @st.cache_resource
-def load_model():
+def load_head_model():
+    """Load YOLO head/face detection model."""
     return YOLO("models/yolo-face-person.pt")
 
 
 @st.cache_resource
-def load_client():
-    return OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+def load_llm():
+    """Load LangChain ChatOpenAI."""
+    return ChatOpenAI(
+        model="gpt-4.1-mini",
+        temperature=0,
+        api_key=st.secrets["OPENAI_API_KEY"],
+    )
 
+
+# ── Main ─────────────────────────────────────────────────────
 
 def main():
-    model = load_model()
-    client = load_client()
     setup_page()
     inject_css()
 
-    # ── Header ──────────────────────────────────────────────────────
+    # Header
     st.markdown(
-        '<h1 class="main-title">Human Descriptor</h1>'
-        '<p class="subtitle">Upload images or use your camera to extract face accessories & body type descriptors</p>',
+        """
+        <div style="text-align:center; padding: 1.5rem 0 0.5rem;">
+            <h1 style="margin:0;">🔍 Human Feature Analyzer</h1>
+            <p style="opacity:0.7; margin-top:0.3rem;">
+                Upload images · Select mode · Ask questions · Get structured results
+            </p>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
-    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 
-    # ── Sidebar ─────────────────────────────────────────────────────
+    # Sidebar
     render_sidebar()
 
-    # ── Upload section ──────────────────────────────────────────────
-    uploaded_files, should_run = render_uploader()
+    # Load models
+    seg_model = load_seg_model()
+    head_model = load_head_model()
+    llm = load_llm()
 
-    # ── Track inference state ───────────────────────────────────────
-    if "inference_done" not in st.session_state:
-        st.session_state["inference_done"] = False
+    # ── Step 1: Upload images ────────────────────────────────
+    st.markdown("### 📷 Step 1 — Upload Images")
+    images, filenames = render_uploader()
 
-    # Reset caches when files change
-    current_keys = set()
-    if uploaded_files:
-        current_keys = {f"{getattr(f, 'name', 'cam')}_{getattr(f, 'size', 0)}" for f in uploaded_files}
+    if not images:
+        st.info("👆 Upload one or more images to begin.", icon="📸")
+        return
 
-    prev_keys = st.session_state.get("prev_file_keys", set())
-    if current_keys != prev_keys:
-        st.session_state["prev_file_keys"] = current_keys
-        st.session_state["inference_done"] = False
-        st.session_state.pop("inference_results", None)
-        st.session_state.pop("yolo_cache", None)
+    # Show preview
+    cols = st.columns(min(len(images), 4))
+    for idx, (img, fname) in enumerate(zip(images, filenames)):
+        with cols[idx % len(cols)]:
+            st.image(img, caption=fname, use_container_width=True)
 
-    # ── Preview / Results ───────────────────────────────────────────
-    if uploaded_files:
-        if should_run:
-            st.session_state["inference_done"] = True
+    # ── Step 2: Mode selection ───────────────────────────────
+    st.markdown("### 🎯 Step 2 — Select Mode")
+    mode = st.selectbox(
+        "Analysis mode",
+        options=["Head and Fullbody","Fullbody",  "Head"],
+        help=(
+            "**Fullbody** — Analyze person body only\n\n"
+            "**Head and Fullbody** — Analyze both head/face and body\n\n"
+            "**Head** — Analyze head/face only"
+        ),
+    )
 
-        if st.session_state["inference_done"]:
-            render_results(uploaded_files, model, client)
-        else:
-            render_preview(uploaded_files, model)
+    # ── Step 3: Input question ───────────────────────────────
+    st.markdown("### ✏️ Step 3 — Input Question")
+    question = st.text_area(
+        "What do you want to detect?",
+        placeholder="e.g. Is this person wearing glasses? Is this person fat or thin?",
+        height=80,
+    )
+
+    # ── Step 4: Analyze ──────────────────────────────────────
+    st.markdown("---")
+    analyze_btn = st.button(
+        "🚀 Analyze All Images",
+        type="primary",
+        use_container_width=True,
+        disabled=not question.strip(),
+    )
+
+    if analyze_btn and question.strip():
+        from inference.descriptor import run_pipeline
+
+        with st.spinner("🔄 Running analysis pipeline..."):
+            results = run_pipeline(
+                images=images,
+                filenames=filenames,
+                mode=mode,
+                question=question.strip(),
+                seg_model=seg_model,
+                head_model=head_model,
+                llm=llm,
+            )
+            
+        st.session_state["analysis_results"] = results
+
+    # ── Step 5: Show results ─────────────────────────────────
+    if "analysis_results" in st.session_state:
+        render_results(st.session_state["analysis_results"])
 
 
 if __name__ == "__main__":
