@@ -395,6 +395,7 @@ def run_pipeline(
         # Step 4: Single LLM call for the whole image using crop metadata
         try:
             llm_mode = mode.lower().replace("and", "&")
+            print(feature)
             raw_res = attribute_calls(llm_mode, question, image_urls, image_meta, person_summaries, llm, feature)
             if feature is None and raw_res.get("status") == 200:
                 feature = raw_res.get("counts", {}).keys()
