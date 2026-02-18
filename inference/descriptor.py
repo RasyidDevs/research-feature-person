@@ -350,7 +350,7 @@ def run_pipeline(
 
             # if some heads still missing, try DeepFace only to fill gaps
             if any(h is None for h in head_crops):
-                df_heads = crops_deepface_head(person_crops)
+                df_heads = crops_deepface_head(person_crops, detector="opencv")
                 # fill missing entries from deepface
                 head_crops = [h if h is not None else df_h for h, df_h in zip(head_crops, df_heads)]
 
