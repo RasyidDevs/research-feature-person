@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field, model_validator
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.messages import SystemMessage, HumanMessage
-
+import streamlit as st
 
 # ── Pydantic models for structured LLM output (per-image + per-person) ──
 class PersonCounts(BaseModel):
@@ -254,7 +254,7 @@ def attribute_calls(
 
         You are give images : {mode}
         You are given a feature: {feature}
-
+        Human Explorable feature example: "skinny", "headset", or any feature that is that human wearing or thats the human biological traits.
         Decide whether the user's question is about observable human features.
         - If previous feature is not None, you must use it.
         - if previous feature is None, You must extract feature from user input intent, for example "Is this person fat or thin?" -> feature: "fat" , "thin", from user question.
@@ -326,16 +326,17 @@ def run_pipeline(
         list of dicts: [{filename, status, counts}, ...]
     """
     results: List[Dict[str, Any]] = []
+    if "feature" not in st.session_state:
+        st.session_state.feature = None
 
     for img, fname in zip(images, filenames):
         # Step 1: Segment persons
-        feature = None
         person_crops = extract_person_crops(img, seg_model)
 
         if not person_crops:
             results.append({
                 "filename": fname,
-                "status": 404,
+                "status": 500,
                 "counts": {},
                 "error": "No person detected",
             })
@@ -395,10 +396,9 @@ def run_pipeline(
         # Step 4: Single LLM call for the whole image using crop metadata
         try:
             llm_mode = mode.lower().replace("and", "&")
-            print(feature)
-            raw_res = attribute_calls(llm_mode, question, image_urls, image_meta, person_summaries, llm, feature)
-            if feature is None and raw_res.get("status") == 200:
-                feature = raw_res.get("counts", {}).keys()
+            raw_res = attribute_calls(llm_mode, question, image_urls, image_meta, person_summaries, llm, st.session_state.feature)
+            if st.session_state.feature is None and raw_res.get("status") == 200:
+                st.session_state.feature = list(raw_res.get("counts", {}).keys())
             # raw_res should contain `per_person` and optionally aggregated `counts`
             if raw_res.get("status") == 404:
                 results.append({

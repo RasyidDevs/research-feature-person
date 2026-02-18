@@ -6,7 +6,6 @@ Upload images → Select mode → Input question → Analyze → Results + CSV
 
 import io
 import streamlit as st
-import pandas as pd
 from components.page_config import setup_page
 from components.sidebar import render_sidebar
 from components.uploader import render_uploader
@@ -45,7 +44,6 @@ def load_llm():
 def main():
     setup_page()
     inject_css()
-
     # Header
     st.markdown(
         """

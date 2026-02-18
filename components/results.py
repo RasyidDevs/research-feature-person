@@ -30,17 +30,16 @@ def render_results(results: List[Dict[str, Any]]) -> None:
     successful = [r for r in results if r.get("status") == 200]
     failed_500 = [r for r in results if r.get("status") == 500]
     failed_404 = [r for r in results if r.get("status") == 404]
-    if failed_500:
-        r = failed_500[0]
-        err = r.get("error", f"Status {r.get('error', 'unknown')}")
-        st.warning(f"**{r['filename']}**: {err}, status code: {r['status']}")
-        return
     if failed_404:
         r = failed_404[0]
         err = r.get("reason", f"Status {r.get('reason', 'unknown')}")
         st.warning(f"**{r['filename']}**: {err} , status code: {r['status']}")
         return
-
+    if failed_500:
+        r = failed_500[0]
+        err = r.get("error", f"Status {r.get('error', 'unknown')}")
+        st.warning(f"**{r['filename']}**: {err}, status code: {r['status']}")
+        
     # ── Collect all unique features ──────────────────────────
     all_features = set()
     for r in successful:
@@ -110,3 +109,5 @@ def render_results(results: List[Dict[str, Any]]) -> None:
         type="primary",
         use_container_width=True,
     )
+
+    
